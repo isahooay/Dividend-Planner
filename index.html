@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>股息計算機 v8 目標反推版</title>
+<style>
+  :root{
+    --bg:#0b0b0b;
+    --card:#141414;
+    --card2:#1b1b1b;
+    --gold:#d4af37;
+    --gold-soft:#f0d77a;
+    --text:#f7f2e8;
+    --muted:#bba97a;
+    --line:rgba(212,175,55,.28);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    min-height:100vh;
+    font-family:"Segoe UI","Noto Sans TC","Microsoft JhengHei",sans-serif;
+    background:
+      radial-gradient(circle at top left, rgba(212,175,55,.10), transparent 25%),
+      linear-gradient(135deg,#050505,#15110a);
+    color:var(--text);
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    padding:20px;
+  }
+  .wrap{width:min(100%,560px)}
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:24px;
+    padding:24px;
+    box-shadow:0 20px 50px rgba(0,0,0,.45);
+  }
+  h1{
+    margin:0 0 8px;
+    font-size:28px;
+    font-weight:900;
+  }
+  .sub{
+    color:var(--muted);
+    font-size:14px;
+    line-height:1.75;
+    margin-bottom:16px;
+  }
+  .mode{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:14px;
+  }
+  .mode button{
+    border:1px solid var(--line);
+    background:var(--card2);
+    color:var(--text);
+    border-radius:14px;
+    padding:12px 10px;
+    font-size:15px;
+    font-weight:800;
+    cursor:pointer;
+  }
+  .mode button.active{
+    background:linear-gradient(135deg, rgba(212,175,55,.16), rgba(255,255,255,.02));
+    color:var(--gold-soft);
+    border-color:rgba(212,175,55,.45);
+  }
+  .field{
+    background:var(--card2);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:14px 16px;
+    margin-bottom:10px;
+  }
+  .label{
+    display:block;
+    color:var(--muted);
+    font-size:12px;
+    margin-bottom:8px;
+  }
+  .input,.select{
+    width:100%;
+    border:none;
+    outline:none;
+    background:transparent;
+    color:var(--text);
+    font-size:26px;
+    font-weight:900;
+  }
+  .hint{
+    margin-top:6px;
+    color:#9e8b5c;
+    font-size:12px;
+    line-height:1.5;
+  }
+  .main-result{
+    margin-top:14px;
+    padding:18px;
+    border-radius:18px;
+    background:linear-gradient(135deg, rgba(212,175,55,.12), rgba(255,255,255,.02));
+    border:1px solid rgba(212,175,55,.35);
+    text-align:center;
+  }
+  .main-result .title{
+    color:var(--muted);
+    font-size:12px;
+    margin-bottom:6px;
+  }
+  .big{
+    font-size:36px;
+    line-height:1.2;
+    font-weight:900;
+    color:var(--gold-soft);
+  }
+  .sub-result{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-top:12px;
+  }
+  .sub-box{
+    background:var(--card2);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:14px;
+    text-align:center;
+  }
+  .sub-box .t{
+    color:var(--muted);
+    font-size:12px;
+    margin-bottom:6px;
+  }
+  .sub-box .v{
+    font-size:24px;
+    font-weight:900;
+  }
+  details{
+    margin-top:14px;
+    background:var(--card2);
+    border:1px solid var(--line);
+    border-radius:14px;
+    overflow:hidden;
+  }
+  summary{
+    cursor:pointer;
+    list-style:none;
+    padding:14px 16px;
+    font-weight:800;
+    color:var(--gold-soft);
+  }
+  summary::-webkit-details-marker{display:none}
+  .detail-body{
+    padding:0 16px 16px;
+  }
+  .footer{
+    margin-top:12px;
+    text-align:center;
+    color:rgba(187,169,122,.75);
+    font-size:12px;
+  }
+  .hide{display:none}
+  @media (max-width:520px){
+    .mode,.sub-result{grid-template-columns:1fr}
+    .big{font-size:32px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>股息計算機 v8</h1>
+    <div class="sub">這版加入目標反推。你可以照原本方式算，也可以直接反推「月領多少要幾股、要多少成本」。主畫面還是只看月 / 季 / 年，不讓其它東西搶眼。</div>
+
+    <div class="mode">
+      <button id="btnNormal" class="active" type="button">一般計算</button>
+      <button id="btnGoal" type="button">目標反推</button>
+    </div>
+
+    <div id="normalPanel">
+      <div class="field">
+        <label class="label">持有股數</label>
+        <input id="shares" class="input" type="number" min="0" step="1" placeholder="例如：1000">
+      </div>
+
+      <div class="field">
+        <label class="label">每次配息（每股）</label>
+        <input id="dividend" class="input" type="number" min="0" step="0.01" placeholder="例如：0.78">
+      </div>
+
+      <div class="field">
+        <label class="label">一年配幾次</label>
+        <select id="freq" class="select">
+          <option value="12">12 次（月配）</option>
+          <option value="4" selected>4 次（季配）</option>
+          <option value="2">2 次（半年配）</option>
+          <option value="1">1 次（年配）</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="goalPanel" class="hide">
+      <div class="field">
+        <label class="label">目標類型</label>
+        <select id="goalType" class="select">
+          <option value="month" selected>我要月領多少</option>
+          <option value="quarter">我要季領多少</option>
+          <option value="year">我要年領多少</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="label">目標金額</label>
+        <input id="goalAmount" class="input" type="number" min="0" step="1" placeholder="例如：1000">
+      </div>
+
+      <div class="field">
+        <label class="label">每次配息（每股）</label>
+        <input id="goalDividend" class="input" type="number" min="0" step="0.01" placeholder="例如：0.78">
+      </div>
+
+      <div class="field">
+        <label class="label">一年配幾次</label>
+        <select id="goalFreq" class="select">
+          <option value="12">12 次（月配）</option>
+          <option value="4" selected>4 次（季配）</option>
+          <option value="2">2 次（半年配）</option>
+          <option value="1">1 次（年配）</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="label">平均成本（每股）</label>
+      <input id="price" class="input" type="number" min="0" step="0.01" placeholder="例如：23.11">
+      <div class="hint">有填才會反推出總成本，沒填就只算股數與股息。</div>
+    </div>
+
+    <div class="main-result">
+      <div class="title" id="mainTitle">月股息</div>
+      <div class="big" id="mainValue">$0</div>
+    </div>
+
+    <div class="sub-result">
+      <div class="sub-box">
+        <div class="t">季股息</div>
+        <div class="v" id="quarterValue">$0</div>
+      </div>
+      <div class="sub-box">
+        <div class="t">年股息</div>
+        <div class="v" id="yearValue">$0</div>
+      </div>
+    </div>
+
+    <details>
+      <summary>進階結果</summary>
+      <div class="detail-body">
+        <div class="sub-result" style="margin-top:2px;">
+          <div class="sub-box">
+            <div class="t" id="sharesTitle">持有股數</div>
+            <div class="v" id="sharesNeed">0 股</div>
+          </div>
+          <div class="sub-box">
+            <div class="t">預估總成本</div>
+            <div class="v" id="costNeed">--</div>
+          </div>
+        </div>
+        <div class="hint" id="equation" style="margin-top:10px;">公式說明會顯示在這裡</div>
+      </div>
+    </details>
+
+
+    <details>
+      <summary>資訊 / 聯絡</summary>
+      <div class="detail-body">
+        <div class="sub-result" style="margin-top:2px;">
+          <div class="sub-box">
+            <div class="t">工作室</div>
+            <div class="v" style="font-size:22px;">GM工作室</div>
+          </div>
+          <div class="sub-box">
+            <div class="t">作者</div>
+            <div class="v" style="font-size:22px;">謝成</div>
+          </div>
+        </div>
+
+        <div class="hint" style="margin-top:12px; line-height:1.8;">
+          客製 / 教學 / AI 協作<br>
+          喜歡這種簡單、順手、真的能拿來用的小工具，也可以交流工具客製、AI 協作開發，或一起討論怎麼把想法做成真正能用的 HTML 工具。
+        </div>
+
+        <div class="sub-result" style="margin-top:12px;">
+          <div class="sub-box">
+            <div class="t">LINE ID</div>
+            <div class="v" style="font-size:20px;" id="lineIdText">isahooay</div>
+          </div>
+          <div class="sub-box">
+            <div class="t">一鍵加入</div>
+            <div class="v" style="font-size:18px;">
+              <a href="https://line.me/ti/p/isahooay" target="_blank" style="color:#f0d77a;text-decoration:none;">開啟 LINE</a>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px; text-align:center;">
+          <img
+            id="lineQr"
+            alt="LINE QR"
+            src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=https://line.me/ti/p/isahooay"
+            style="width:170px;max-width:100%;border-radius:12px;background:#fff;padding:8px;"
+          />
+        </div>
+
+        <div class="hint" style="text-align:center; margin-top:10px;">
+          想客製、想優化、想學，或只是想聊聊方向，都可以聯絡。
+        </div>
+      </div>
+    </details>
+
+
+    <div class="footer">v8｜一般計算 + 目標反推</div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+let mode = 'normal';
+
+function fmtMoney(n){
+  return '$' + Number(n).toLocaleString('zh-TW', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  });
+}
+function fmtNum(n){
+  return Number(n).toLocaleString('zh-TW', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  });
+}
+function ceilShares(n){
+  return Math.ceil(Number(n) || 0);
+}
+function setMode(nextMode){
+  mode = nextMode;
+  $('btnNormal').classList.toggle('active', mode === 'normal');
+  $('btnGoal').classList.toggle('active', mode === 'goal');
+  $('normalPanel').classList.toggle('hide', mode !== 'normal');
+  $('goalPanel').classList.toggle('hide', mode !== 'goal');
+  update();
+}
+function update(){
+  const price = Math.max(0, parseFloat($('price').value) || 0);
+
+  if(mode === 'normal'){
+    const shares = Math.max(0, parseFloat($('shares').value) || 0);
+    const dividend = Math.max(0, parseFloat($('dividend').value) || 0);
+    const freq = Math.max(0, parseFloat($('freq').value) || 0);
+
+    const single = shares * dividend;
+    const year = single * freq;
+    const month = year / 12;
+    const quarter = year / 4;
+    const cost = shares * price;
+
+    $('mainTitle').textContent = '月股息';
+    $('mainValue').textContent = fmtMoney(month);
+    $('quarterValue').textContent = fmtMoney(quarter);
+    $('yearValue').textContent = fmtMoney(year);
+    $('sharesTitle').textContent = '持有股數';
+    $('sharesNeed').textContent = fmtNum(shares) + ' 股';
+    $('costNeed').textContent = cost > 0 ? fmtMoney(cost) : '--';
+    $('equation').textContent = `公式：${fmtNum(shares)} 股 × ${fmtNum(dividend)} 元 × ${fmtNum(freq)} 次 = 年 ${fmtMoney(year)}｜月 = 年 ÷ 12｜季 = 年 ÷ 4`;
+  } else {
+    const goalType = $('goalType').value;
+    const goalAmount = Math.max(0, parseFloat($('goalAmount').value) || 0);
+    const dividend = Math.max(0, parseFloat($('goalDividend').value) || 0);
+    const freq = Math.max(0, parseFloat($('goalFreq').value) || 0);
+
+    let targetYear = 0;
+    let mainText = '月股息';
+    if(goalType === 'month'){
+      targetYear = goalAmount * 12;
+      mainText = '目標月股息';
+    }else if(goalType === 'quarter'){
+      targetYear = goalAmount * 4;
+      mainText = '目標季股息';
+    }else{
+      targetYear = goalAmount;
+      mainText = '目標年股息';
+    }
+
+    let sharesNeed = 0;
+    if(dividend > 0 && freq > 0){
+      sharesNeed = ceilShares(targetYear / (dividend * freq));
+    }
+
+    const single = sharesNeed * dividend;
+    const year = single * freq;
+    const month = year / 12;
+    const quarter = year / 4;
+    const cost = sharesNeed * price;
+
+    $('mainTitle').textContent = mainText;
+    $('mainValue').textContent =
+      goalType === 'month' ? fmtMoney(month) :
+      goalType === 'quarter' ? fmtMoney(quarter) :
+      fmtMoney(year);
+
+    $('quarterValue').textContent = fmtMoney(quarter);
+    $('yearValue').textContent = fmtMoney(year);
+    $('sharesTitle').textContent = '至少需要股數';
+    $('sharesNeed').textContent = fmtNum(sharesNeed) + ' 股';
+    $('costNeed').textContent = (price > 0 && sharesNeed > 0) ? fmtMoney(cost) : '--';
+    $('equation').textContent = `反推：目標年股息 ${fmtMoney(targetYear)} ÷ (每次配息 ${fmtNum(dividend)} × 每年 ${fmtNum(freq)} 次) = 約 ${fmtNum(sharesNeed)} 股`;
+  }
+}
+
+$('btnNormal').addEventListener('click', () => setMode('normal'));
+$('btnGoal').addEventListener('click', () => setMode('goal'));
+
+['shares','dividend','freq','price','goalType','goalAmount','goalDividend','goalFreq']
+  .forEach(id => $(id).addEventListener('input', update));
+
+update();
+</script>
+</body>
+</html>
